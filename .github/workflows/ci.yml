@@ -1,0 +1,51 @@
+name: CI - Docker y GHCR
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v7
+
+      - name: Construir imagen
+        run: |
+          docker build \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            -t dds-devops-demo:test .
+
+      - name: Verificar funcionamiento
+        run: |
+          trap 'docker rm -f web-test >/dev/null 2>&1 || true' EXIT
+          docker run -d --name web-test -p 127.0.0.1:8080:80 dds-devops-demo:test
+          for i in $(seq 1 15); do
+            if curl -fsS --max-time 2 http://127.0.0.1:8080/ | grep -q "Hola DevOps"; then
+              echo "Prueba exitosa"
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs web-test
+          exit 1
+
+      - name: Autenticarse en GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publicar imagen
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA::7}"
+          docker tag dds-devops-demo:test "$IMAGE"
+          docker push "$IMAGE"
