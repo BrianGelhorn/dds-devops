@@ -1,4 +1,4 @@
-name: CI - Docker y GHCR
+name: CI - Docker, GHCR y Docker Hub
 
 on:
   push:
@@ -12,6 +12,8 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
 
     steps:
       - name: Obtener código
@@ -38,14 +40,30 @@ jobs:
           exit 1
 
       - name: Autenticarse en GHCR
+        if: github.ref == 'refs/heads/main'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publicar imagen
+      - name: Autenticarse en Docker Hub
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Publicar en ambos registros
+        if: github.ref == 'refs/heads/main'
         run: |
-          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA::7}"
-          docker tag dds-devops-demo:test "$IMAGE"
-          docker push "$IMAGE"
+          GHCR_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          DOCKERHUB_IMAGE="docker.io/${DOCKERHUB_USERNAME,,}/dds-devops-demo"
+          COMMIT_TAG="${GITHUB_SHA::7}"
+
+          for IMAGE in "$GHCR_IMAGE" "$DOCKERHUB_IMAGE"; do
+            docker tag dds-devops-demo:test "${IMAGE}:latest"
+            docker tag dds-devops-demo:test "${IMAGE}:${COMMIT_TAG}"
+            docker push "${IMAGE}:latest"
+            docker push "${IMAGE}:${COMMIT_TAG}"
+          done
