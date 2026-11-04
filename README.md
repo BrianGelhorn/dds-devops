@@ -1,11 +1,12 @@
-# Práctica de CI - Docker + GitHub Actions + GHCR
+# Práctica de CI - Docker + GitHub Actions + GHCR + Docker Hub
 
 ## Objetivo
-Construir una aplicación web sencilla, verificarla y publicar una imagen de contenedor identificada por el commit de Git.
+Construir y verificar la aplicación web una sola vez, y publicar la misma imagen en dos registros de contenedores. Cada publicación usa las etiquetas `latest` y los siete primeros caracteres del commit.
 
 ## Requisitos
 - Docker instalado y funcionando para la prueba local.
 - Cuenta de GitHub y repositorio público con rama `main`.
+- Cuenta de Docker Hub y repositorio público llamado `dds-devops-demo`.
 
 ## Paso 1 - Docker local
 ```bash
@@ -14,20 +15,36 @@ docker run --rm -p 8080:80 dds-devops-demo:local
 ```
 Abrir http://localhost:8080 y verificar el mensaje **Hola DevOps**.
 
-## Paso 2 - GitHub Actions
-Crear un repositorio público, subir todos los archivos manteniendo las carpetas, y realizar un push a `main`.
-Ir a **Actions** y verificar que termine correctamente el workflow **CI - Docker y GHCR**.
+## Paso 2 - Configurar GitHub Actions
+En Docker Hub, crear el repositorio público `dds-devops-demo` y un access token con permiso de lectura y escritura.
 
-## Paso 3 - GitHub Container Registry
-En GitHub, abrir la página principal del repositorio y ubicar **Packages** en el panel lateral derecho. Allí debería aparecer el paquete publicado. También puede consultarse desde la sección **Packages** del perfil de la cuenta u organización propietaria. La imagen se identifica como `ghcr.io/USUARIO/REPOSITORIO:SHA_CORTO` (siete caracteres).
+En el repositorio de GitHub, abrir **Settings > Secrets and variables > Actions** y configurar:
 
-**Importante**: un paquete GHCR recién publicado puede ser privado aun si el repositorio es público. Para permitir descargas anónimas, abrir los ajustes del paquete y cambiar su visibilidad a público. Esta operación es distinta de hacer público el repositorio.
+- En **Variables**, crear `DOCKERHUB_USERNAME` con el usuario de Docker Hub.
+- En **Secrets**, crear `DOCKERHUB_TOKEN` con el access token de Docker Hub.
 
-Ejecutar la imagen publicada desde una máquina con Docker:
+No guardar el token en el código fuente. Después, subir los cambios a `main` o ejecutar manualmente el workflow **CI - Docker, GHCR y Docker Hub** desde **Actions**.
+
+El workflow construye la imagen una vez, valida que sirva la página **Hola DevOps**, y publica esa misma imagen en GHCR y Docker Hub. En cada registro publica las etiquetas `latest` y `SHA_CORTO`.
+
+## Paso 3 - Verificar las imágenes publicadas
+
+En GitHub, abrir **Packages** en la página principal del repositorio o desde el perfil propietario. La imagen de GHCR es `ghcr.io/USUARIO/REPOSITORIO`. Un paquete GHCR recién publicado puede ser privado; para descargarlo sin iniciar sesión, cambiar su visibilidad a pública en los ajustes del paquete.
+
+En Docker Hub, abrir https://hub.docker.com/r/USUARIO/dds-devops-demo y confirmar que el repositorio está público.
+
+Reemplazar `SHA_CORTO` por los siete primeros caracteres del commit que ejecutó el workflow. Se puede usar tanto la etiqueta del commit como `latest`:
+
 ```bash
 docker run --rm -p 8081:80 ghcr.io/USUARIO/REPOSITORIO:SHA_CORTO
+docker run --rm -p 8082:80 USUARIO/dds-devops-demo:SHA_CORTO
 ```
-Si la imagen todavía no existe localmente, Docker la descargará automáticamente desde GHCR antes de iniciar el contenedor. Abrir http://localhost:8081 y verificar que se muestra la aplicación. Si la imagen es privada, será necesario autenticarse antes de ejecutarla.
+
+Docker descargará cada imagen si aún no está presente localmente. Abrir http://localhost:8081 y http://localhost:8082 para verificar que ambas muestran **Hola DevOps**. Para probar `latest`, sustituir `SHA_CORTO` por `latest`.
+
+## Entrega
+- URL de Docker Hub con tag del commit: `USUARIO/dds-devops-demo:SHA_CORTO`.
+- Captura de **Actions** donde se vea que el workflow terminó exitosamente y publicó en GHCR y Docker Hub.
 
 ## Alcance
-Este workflow realiza integración continua y publicación de un artefacto. No realiza despliegue de una aplicación en la nube.
+Este workflow realiza integración continua y publicación de imágenes. No despliega la aplicación en la nube.
