@@ -1,12 +1,13 @@
-# Práctica de CI - Docker + GitHub Actions + GHCR + Docker Hub
+# Práctica de CI - Docker + GitHub Actions + GHCR + Docker Hub + Render
 
 ## Objetivo
-Construir y verificar la aplicación web una sola vez, y publicar la misma imagen en dos registros de contenedores. Cada publicación usa las etiquetas `latest` y los siete primeros caracteres del commit.
+Construir y verificar la aplicación web una sola vez, publicar la misma imagen en GHCR y Docker Hub con las etiquetas `latest` y el SHA corto del commit, y disparar el despliegue de Render después de publicar.
 
 ## Requisitos
 - Docker instalado y funcionando para la prueba local.
 - Cuenta de GitHub y repositorio público con rama `main`.
-- Cuenta de Docker Hub y repositorio público llamado `dds-devops-demo`.
+- Cuenta de Docker Hub y repositorio público `dds-devops-demo`.
+- Cuenta gratuita de Render y un Web Service conectado a la imagen de Docker Hub.
 
 ## Paso 1 - Docker local
 ```bash
@@ -15,36 +16,49 @@ docker run --rm -p 8080:80 dds-devops-demo:local
 ```
 Abrir http://localhost:8080 y verificar el mensaje **Hola DevOps**.
 
-## Paso 2 - Configurar GitHub Actions
-En Docker Hub, crear el repositorio público `dds-devops-demo` y un access token con permiso de lectura y escritura.
-
+## Paso 2 - Configurar GitHub Actions para publicar las imágenes
 En el repositorio de GitHub, abrir **Settings > Secrets and variables > Actions** y configurar:
 
 - En **Variables**, crear `DOCKERHUB_USERNAME` con el usuario de Docker Hub.
-- En **Secrets**, crear `DOCKERHUB_TOKEN` con el access token de Docker Hub.
+- En **Secrets**, crear `DOCKERHUB_TOKEN` con un access token de Docker Hub con permiso de lectura y escritura.
 
-No guardar el token en el código fuente. Al recibir cambios en `main), el workflow construye la imagen una vez, valida que sirva la página **Hola DevOps** y publica esa misma imagen en GHCR y Docker Hub. Si se ejecuta manualmente desde **Actions**, seleccionar la rama `main`.
+El workflow construye la imagen una vez, valida que sirva la página y publica esa misma imagen en GHCR y Docker Hub con las etiquetas `latest` y `SHA_CORTO`. La publicación se ejecuta en cambios a `main` o al iniciar manualmente el workflow desde `main`.
 
-En cada registro se publican las etiquetas `latest` y `SHA_CORTO`.
+## Paso 3 - Crear el Web Service en Render
+En Render, crear un **Web Service** con **Existing Image** y usar la imagen pública de Docker Hub:
 
-## Paso 3 - Verificar las imágenes publicadas
+```text
+docker.io/broogel/dds-devops-demo:latest
+```
 
-En GitHub, abrir **Packages** en la página principal del repositorio o desde el perfil propietario. La imagen de GHCR es `ghcr.io/USUARIO/REPOSITORIO`. Un paquete GHCR recién publicado puede ser privado; para descargarlo sin iniciar sesión, cambiar su visibilidad a pública en los ajustes del paquete.
+La imagen escucha en el puerto 80. Desplegar el servicio y comprobar que la URL pública de Render muestra **Hola DevOps**.
 
-En Docker Hub, abrir https://hub.docker.com/r/USUARIO/dds-devops-demo y confirmar que el repositorio está público.
+## Paso 4 - Configurar el Deploy Hook
+En los ajustes del servicio de Render, copiar el **Deploy Hook URL**. En **Settings > Secrets and variables > Actions** de GitHub, crear el secreto:
 
-Reemplazar `SHA_CORTO` por los siete primeros caracteres del commit que ejecutó el workflow. Se puede usar tanto la etiqueta del commit como `latest`:
+- `RENDER_DEPLOY_HOOK_URL`: URL del Deploy Hook del servicio.
+
+Mantener esta URL como secreto. El workflow la llama después de que las publicaciones en GHCR y Docker Hub terminan correctamente. Los servicios basados en una imagen de registro no se redespliegan solo porque cambie la etiqueta de la imagen.
+
+## Paso 5 - Comprobar el despliegue automático
+Modificar el texto de `index.html` conservando **Hola DevOps** para que la validación del workflow siga funcionando. Luego, integrar los cambios en `main`.
+
+En **Actions**, verificar que la ejecución termine correctamente y que aparezca el paso **Desplegar en Render**. Esperar a que termine ese despliegue y abrir la URL pública del servicio para confirmar que muestra el nuevo texto. No iniciar un despliegue manual desde Render.
+
+## Verificación de las imágenes
+Reemplazar `SHA_CORTO` por los siete primeros caracteres del commit que ejecutó el workflow:
 
 ```bash
 docker run --rm -p 8081:80 ghcr.io/USUARIO/REPOSITORIO:SHA_CORTO
-docker run --rm -p 8082:80 USUARIO/dds-devops-demo:SHA_CORTO
+docker run --rm -p 8082:80 broogel/dds-devops-demo:SHA_CORTO
 ```
 
-Docker descargará cada imagen si aún no está presente localmente. Abrir http://localhost:8081 y http://localhost:8082 para verificar que ambas muestran **Hola DevOps**. Para probar `latest`, sustituir `SHA_CORTO` por `latest`.
+Abrir http://localhost:8081 y http://localhost:8082 y confirmar que ambas muestran la aplicación.
 
 ## Entrega
-- URL de Docker Hub con tag del commit: `USUARIO/dds-devops-demo:SHA_CORTO`.
-- Captura de **Actions** donde se vea que el workflow terminó exitosamente y publicó en GHCR y Docker Hub.
+- URL de Docker Hub con tag del commit: `broogel/dds-devops-demo:SHA_CORTO`.
+- Captura de **Actions** con la ejecución exitosa y el paso de despliegue en Render.
+- URL pública del Web Service de Render.
 
 ## Alcance
-Este workflow realiza integración continua y publicación de imágenes. No despliega la aplicación en la nube.
+El workflow realiza integración continua, publica imágenes en dos registros y dispara el despliegue de la aplicación en Render. No cambia el Dockerfile ni la forma en que se construye la aplicación.
