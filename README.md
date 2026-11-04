@@ -23,9 +23,9 @@ En el repositorio de GitHub, abrir **Settings > Secrets and variables > Actions*
 - En **Variables**, crear `DOCKERHUB_USERNAME` con el usuario de Docker Hub.
 - En **Secrets**, crear `DOCKERHUB_TOKEN` con el access token de Docker Hub.
 
-No guardar el token en el código fuente. Después, subir los cambios a `main` o ejecutar manualmente el workflow **CI - Docker, GHCR y Docker Hub** desde **Actions**.
+No guardar el token en el código fuente. El workflow construye y valida la imagen en cada pull request dirigido a `main`. Al recibir cambios en `main`, también publica esa misma imagen; la publicación requiere los ajustes de Docker Hub anteriores. Si se ejecuta manualmente, hacerlo desde la rama `main`.
 
-El workflow construye la imagen una vez, valida que sirva la página **Hola DevOps**, y publica esa misma imagen en GHCR y Docker Hub. En cada registro publica las etiquetas `latest` y `SHA_CORTO`.
+Cada publicación usa las etiquetas `latest` y `SHA_CORTO` en GHCR y Docker Hub.
 
 ## Paso 3 - Verificar las imágenes publicadas
 
